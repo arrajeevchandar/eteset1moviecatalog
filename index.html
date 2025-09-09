@@ -1,0 +1,129 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Movie Catalog</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-900">
+
+  <div class="container mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6 text-center">🎬 Movie Catalog</h1>
+
+    <!-- Movie Form -->
+    <form id="movieForm" class="bg-white shadow-md rounded p-4 mb-6">
+      <div class="grid grid-cols-2 gap-4">
+        <input type="text" id="title" placeholder="Title" class="border p-2 rounded" required>
+        <input type="text" id="director" placeholder="Director" class="border p-2 rounded">
+        <input type="text" id="genre" placeholder="Genre" class="border p-2 rounded">
+        <input type="number" id="release_year" placeholder="Release Year" class="border p-2 rounded">
+        <input type="number" step="0.1" id="rating" placeholder="Rating" class="border p-2 rounded">
+      </div>
+      <button id="submitBtn" type="submit" 
+  class="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+  Add Movie
+</button>
+    </form>
+
+    <!-- Movies List -->
+    <div id="moviesList" class="grid gap-4"></div>
+  </div>
+
+<script>
+  const API_URL = "http://localhost:5000/movies";
+  let editId = null; // track movie being edited
+
+  // Fetch all movies
+  async function fetchMovies() {
+    const res = await fetch(API_URL);
+    const movies = await res.json();
+    const list = document.getElementById("moviesList");
+    list.innerHTML = "";
+
+    movies.forEach(movie => {
+      const div = document.createElement("div");
+      div.className = "bg-white shadow p-4 rounded flex justify-between items-center";
+      div.innerHTML = `
+        <div>
+          <h2 class="text-xl font-semibold">${movie.title}</h2>
+          <p class="text-sm">🎬 Director: ${movie.director || "N/A"}</p>
+          <p class="text-sm">📀 Genre: ${movie.genre || "N/A"}</p>
+          <p class="text-sm">📅 Year: ${movie.release_year || "N/A"}</p>
+          <p class="text-sm">⭐ Rating: ${movie.rating || "N/A"}</p>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="editMovie(${movie.id}, '${movie.title}', '${movie.director}', '${movie.genre}', ${movie.release_year}, ${movie.rating})" 
+            class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded">
+            Edit
+          </button>
+          <button onclick="deleteMovie(${movie.id})" 
+            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
+            Delete
+          </button>
+        </div>
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  // Delete movie
+  async function deleteMovie(id) {
+    await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+    fetchMovies();
+  }
+
+  // Edit movie (fill form)
+  function editMovie(id, title, director, genre, release_year, rating) {
+    editId = id;
+    document.getElementById("title").value = title;
+    document.getElementById("director").value = director;
+    document.getElementById("genre").value = genre;
+    document.getElementById("release_year").value = release_year;
+    document.getElementById("rating").value = rating;
+
+    document.getElementById("submitBtn").innerText = "Update Movie";
+    document.getElementById("submitBtn").classList.remove("bg-blue-500", "hover:bg-blue-600");
+    document.getElementById("submitBtn").classList.add("bg-green-500", "hover:bg-green-600");
+  }
+
+  // Add or Update movie
+  document.getElementById("movieForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const movie = {
+      title: document.getElementById("title").value,
+      director: document.getElementById("director").value,
+      genre: document.getElementById("genre").value,
+      release_year: document.getElementById("release_year").value,
+      rating: document.getElementById("rating").value,
+    };
+
+    if (editId) {
+      // Update movie
+      await fetch(`${API_URL}/${editId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(movie),
+      });
+      editId = null;
+      document.getElementById("submitBtn").innerText = "Add Movie";
+      document.getElementById("submitBtn").classList.remove("bg-green-500", "hover:bg-green-600");
+      document.getElementById("submitBtn").classList.add("bg-blue-500", "hover:bg-blue-600");
+    } else {
+      // Add movie
+      await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(movie),
+      });
+    }
+
+    e.target.reset();
+    fetchMovies();
+  });
+
+  fetchMovies();
+</script>
+</body>
+</html>
