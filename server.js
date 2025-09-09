@@ -1,5 +1,5 @@
 const express = require("express");
-const mysql = require("mysql2");
+const { Pool } = require("pg");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 
@@ -7,68 +7,61 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",     
-  password: "root",      
-  database: "movies_db"
-});
-
-db.connect(err => {
-  if (err) {
-    console.error("Database connection failed:", err);
-    return;
-  }
-  console.log("Connected to MySQL!");
+// Supabase/Postgres connection
+const pool = new Pool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: 5432,
+  ssl: { rejectUnauthorized: false } // required for Supabase
 });
 
 // Routes
-
-// GET all movies
-app.get("/movies", (req, res) => {
-  db.query("SELECT * FROM movies", (err, results) => {
-    if (err) return res.status(500).json({ error: err });
-    res.json(results);
-  });
+app.get("/movies", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM movies ORDER BY id");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// POST add a new movie
-app.post("/movies", (req, res) => {
+app.post("/movies", async (req, res) => {
   const { title, director, genre, release_year, rating } = req.body;
-  db.query(
-    "INSERT INTO movies (title, director, genre, release_year, rating) VALUES (?, ?, ?, ?, ?)",
-    [title, director, genre, release_year, rating],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err });
-      res.json({ message: "Movie added!", id: result.insertId });
-    }
-  );
+  try {
+    const result = await pool.query(
+      "INSERT INTO movies (title, director, genre, release_year, rating) VALUES ($1,$2,$3,$4,$5) RETURNING id",
+      [title, director, genre, release_year, rating]
+    );
+    res.json({ message: "Movie added!", id: result.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// PUT update a movie
-app.put("/movies/:id", (req, res) => {
+app.put("/movies/:id", async (req, res) => {
   const { id } = req.params;
   const { title, director, genre, release_year, rating } = req.body;
-  db.query(
-    "UPDATE movies SET title=?, director=?, genre=?, release_year=?, rating=? WHERE id=?",
-    [title, director, genre, release_year, rating, id],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err });
-      res.json({ message: "Movie updated!" });
-    }
-  );
+  try {
+    await pool.query(
+      "UPDATE movies SET title=$1, director=$2, genre=$3, release_year=$4, rating=$5 WHERE id=$6",
+      [title, director, genre, release_year, rating, id]
+    );
+    res.json({ message: "Movie updated!" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// DELETE a movie
-app.delete("/movies/:id", (req, res) => {
+app.delete("/movies/:id", async (req, res) => {
   const { id } = req.params;
-  db.query("DELETE FROM movies WHERE id=?", [id], (err, result) => {
-    if (err) return res.status(500).json({ error: err });
+  try {
+    await pool.query("DELETE FROM movies WHERE id=$1", [id]);
     res.json({ message: "Movie deleted!" });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// Start server
-app.listen(5000, () => {
-  console.log("Server running on http://localhost:5000");
-});
+app.listen(5000, () => console.log("Server running on port 5000"));
